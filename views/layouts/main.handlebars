@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steam Game Picker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js" integrity="sha512-uaz5GpnQoE6t5echKlX8P52czvsIGgLPcvlzfvRubLZ1Hp8JemUDnbUiAahbVtPb+jUVrNETuXvAhDDF/N3M4w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg-primary: #0f1923;
+            --bg-secondary: #1b2838;
+            --bg-card: #1e2d3d;
+            --accent: #66c0f4;
+            --accent-glow: rgba(102, 192, 244, 0.25);
+            --text-primary: #c6d4df;
+            --text-secondary: #8f98a0;
+            --text-bright: #ffffff;
+            --danger: #c0392b;
+            --danger-hover: #e74c3c;
+            --border: rgba(102, 192, 244, 0.15);
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-primary);
+            background-image:
+                radial-gradient(ellipse at 15% 0%, rgba(102, 192, 244, 0.06) 0%, transparent 55%),
+                radial-gradient(ellipse at 85% 100%, rgba(102, 192, 244, 0.04) 0%, transparent 55%);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1060px;
+            margin: 0 auto;
+            padding: 2.5rem 2rem;
+        }
+
+        /* ── Header ── */
+        .page-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .page-header h1 {
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
+            font-weight: 700;
+            color: var(--text-bright);
+            letter-spacing: -0.5px;
+        }
+
+        .page-header h1 span {
+            color: var(--accent);
+        }
+
+        .page-header .subtitle {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* ── Loader section ── */
+        .loader-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+
+        .loader-section h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-bright);
+            margin-bottom: 0.4rem;
+        }
+
+        .loader-section p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.25rem;
+        }
+
+        .loader-section p a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .loader-section p a:hover {
+            text-decoration: underline;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .steam-id-input {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.65rem 1rem;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            width: 220px;
+            transition: border-color 0.18s;
+        }
+
+        .steam-id-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .steam-id-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .error-message {
+            margin-top: 0.75rem;
+            font-size: 0.85rem;
+            color: var(--danger-hover);
+            min-height: 1.2rem;
+        }
+
+        /* ── Stats bar ── */
+        .stats-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            align-items: stretch;
+        }
+
+        .profile-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 0.75rem 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .profile-card img {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            display: block;
+        }
+
+        .profile-card span {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-bright);
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            flex: 1;
+        }
+
+        .stat-card .label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-secondary);
+            margin-bottom: 0.35rem;
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent);
+            line-height: 1;
+        }
+
+        /* ── Picker card ── */
+        .picker-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .canvas-wrapper {
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 1.25rem;
+            border: 1px solid var(--border);
+            position: relative;
+        }
+
+        #root {
+            width: 100%;
+            display: block;
+            line-height: 0;
+        }
+
+        #root canvas {
+            display: block;
+        }
+
+        /* ── Buttons ── */
+        .button-row {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.65rem 1.75rem;
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            letter-spacing: 0.3px;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #0f1923;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #ffffff;
+            box-shadow: 0 0 18px var(--accent-glow);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: rgba(102, 192, 244, 0.1);
+            color: var(--accent);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: rgba(102, 192, 244, 0.2);
+            transform: translateY(-1px);
+        }
+
+        /* ── Game card ── */
+        .game-card {
+            display: block;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--shadow);
+            text-decoration: none;
+            color: inherit;
+            transition: border-color 0.18s, transform 0.18s;
+        }
+
+        .game-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .game-card img {
+            width: 100%;
+            display: block;
+            max-height: 220px;
+            object-fit: cover;
+        }
+
+        .game-card-body {
+            padding: 1rem 1.5rem;
+        }
+
+        .game-card-body h3 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text-bright);
+            margin-bottom: 0.4rem;
+        }
+
+        .game-card-body p {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+
+        /* ── Rules section ── */
+        .rules-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .rules-toggle {
+            width: 100%;
+            background: none;
+            border: none;
+            padding: 1.1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: background 0.18s;
+        }
+
+        .rules-toggle:hover {
+            background: rgba(102, 192, 244, 0.05);
+        }
+
+        .rules-toggle .chevron {
+            font-size: 0.75rem;
+            transition: transform 0.3s ease;
+            color: var(--accent);
+        }
+
+        .rules-toggle.open .chevron {
+            transform: rotate(180deg);
+        }
+
+        .rules-body {
+            display: none;
+            padding: 0 1.5rem 1.25rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .rules-body.open {
+            display: block;
+        }
+
+        .rules-body ul {
+            list-style: none;
+            padding-top: 0.75rem;
+        }
+
+        .rules-body ul li {
+            position: relative;
+            padding: 0.55rem 0 0.55rem 1.4rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            line-height: 1.55;
+            border-bottom: 1px solid rgba(102, 192, 244, 0.06);
+        }
+
+        .rules-body ul li:last-child {
+            border-bottom: none;
+        }
+
+        .rules-body ul li::before {
+            content: '›';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-size: 1.1rem;
+            line-height: 1.35;
+        }
+
+        @media (max-width: 600px) {
+            .container { padding: 1.5rem 1rem; }
+            .stats-bar { flex-direction: column; }
+            .button-row { flex-direction: column; align-items: stretch; }
+            .input-row { flex-direction: column; align-items: stretch; }
+            .steam-id-input { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {{{body}}}
+    </div>
+</body>
+</html>

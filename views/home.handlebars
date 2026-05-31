@@ -1,0 +1,273 @@
+<header class="page-header">
+    <h1>Steam <span>Game</span> Picker</h1>
+    <p class="subtitle">Randomly selecting your next adventure from your Steam library</p>
+</header>
+
+<div class="loader-section" id="loader-section">
+    <h2>Enter your Steam username</h2>
+    <p>
+        Your Steam profile and game details must be set to <strong>Public</strong>.<br>
+        This is the name in your Steam profile URL: <code>steamcommunity.com/id/<strong>username</strong></code>.<br>
+        Your details are used only to fetch your library and are not stored.
+    </p>
+    <div class="input-row">
+        <input
+            type="text"
+            id="steam-id-input"
+            class="steam-id-input"
+            placeholder="e.g. gaben"
+            maxlength="32"
+        >
+        <button type="button" class="btn btn-primary" id="load-btn" onclick="loadGames()">Load Library</button>
+    </div>
+    <div class="error-message" id="error-message"></div>
+</div>
+
+<button type="button" class="btn btn-secondary" id="back-btn" onclick="goBack()" style="display:none; margin-bottom:0.75rem;">&#8592;&nbsp; Back</button>
+
+<div class="stats-bar" id="stats-bar" style="display:none;">
+    <div class="profile-card" id="profile-card">
+        <img id="profile-avatar" src="" alt="">
+        <span id="profile-name"></span>
+    </div>
+    <div class="stat-card">
+        <div class="label">Total Games</div>
+        <div class="value" id="number-of-games">—</div>
+    </div>
+</div>
+
+<div class="picker-section" id="picker-section" style="display:none;">
+    <div class="canvas-wrapper">
+        <div id="root"></div>
+    </div>
+    <div class="button-row">
+        <button type="button" class="btn btn-primary" onclick="startRandom()">&#9654;&nbsp; Start</button>
+        <button type="button" class="btn btn-secondary" onclick="endRandom()">&#9632;&nbsp; Stop</button>
+    </div>
+</div>
+
+<a class="game-card" id="game-card" href="#" target="_blank" rel="noopener noreferrer" style="display:none;">
+    <img id="game-card-art" src="" alt="">
+    <div class="game-card-body">
+        <h3 id="game-card-name"></h3>
+        <p id="game-card-desc"></p>
+    </div>
+</a>
+
+<script>
+    let games = null;
+
+    async function loadGames() {
+        const username = document.getElementById('steam-id-input').value.trim();
+        const errorEl = document.getElementById('error-message');
+        const loadBtn = document.getElementById('load-btn');
+
+        errorEl.textContent = '';
+
+        if (!username) {
+            errorEl.textContent = 'Please enter your Steam username.';
+            return;
+        }
+
+        loadBtn.disabled = true;
+        loadBtn.textContent = 'Loading…';
+
+        try {
+            const resolveRes = await fetch(`/api/resolve/${encodeURIComponent(username)}`);
+            const resolveData = await resolveRes.json();
+            if (!resolveRes.ok) {
+                throw new Error(resolveData.error || 'Failed to resolve username.');
+            }
+            const steamId = resolveData.steamId;
+
+            const response = await fetch(`/api/games/${steamId}`);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to load library.');
+            }
+
+            games = data.games;
+
+            document.getElementById('number-of-games').innerText = data.game_count;
+
+            const profileRes = await fetch(`/api/profile/${steamId}`);
+            if (profileRes.ok) {
+                const profile = await profileRes.json();
+                document.getElementById('profile-avatar').src = profile.avatar;
+                document.getElementById('profile-avatar').alt = profile.name;
+                document.getElementById('profile-name').textContent = profile.name;
+            }
+
+            document.getElementById('loader-section').style.display = 'none';
+            document.getElementById('back-btn').style.display = 'inline-flex';
+            document.getElementById('stats-bar').style.display = 'flex';
+            document.getElementById('picker-section').style.display = 'block';
+
+            const p5instance = new p5(sketch);
+            window._p5instance = p5instance;
+        } catch (err) {
+            errorEl.textContent = err.message;
+            loadBtn.disabled = false;
+            loadBtn.textContent = 'Load Library';
+        }
+    }
+
+    document.getElementById('steam-id-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') loadGames();
+    });
+
+    function goBack() {
+        if (window._p5instance) {
+            window._p5instance.remove();
+            window._p5instance = null;
+        }
+        games = null;
+        document.getElementById('root').innerHTML = '';
+        document.getElementById('game-card').style.display = 'none';
+        document.getElementById('back-btn').style.display = 'none';
+        document.getElementById('stats-bar').style.display = 'none';
+        document.getElementById('picker-section').style.display = 'none';
+        document.getElementById('loader-section').style.display = 'block';
+        const loadBtn = document.getElementById('load-btn');
+        loadBtn.disabled = false;
+        loadBtn.textContent = 'Load Library';
+        document.getElementById('error-message').textContent = '';
+        document.getElementById('steam-id-input').value = '';
+        document.getElementById('steam-id-input').focus();
+    }
+
+    async function showGameCard(gameName) {
+        const game = games.find(g => g.name === gameName);
+        if (!game || !game.appid) return;
+
+        const card = document.getElementById('game-card');
+        card.style.display = 'none';
+
+        try {
+            const response = await fetch(`/api/game/${game.appid}`);
+            if (!response.ok) return;
+            const data = await response.json();
+
+            document.getElementById('game-card-art').src = data.header_image;
+            document.getElementById('game-card-art').alt = data.name;
+            document.getElementById('game-card-name').textContent = data.name;
+            document.getElementById('game-card-desc').textContent = data.short_description;
+            card.href = `https://store.steampowered.com/app/${game.appid}/`;
+            card.style.display = 'block';
+        } catch (e) {
+            // silently fail
+        }
+    }
+
+    const sketch = (p) => {
+        let names = [];
+        let scrollSpeed = 10;
+        let nameGenerationSpeed = 5;
+        let selectionTopLine;
+        let selectionBottomLine;
+        let currentGamePool;
+        let currentGame = '';
+        let randomising = false;
+        let settled = false;
+
+        class Name {
+            constructor(posY, gameName) {
+                this.posY = posY;
+                this.gameName = gameName;
+            }
+            draw() {
+                p.rectMode(p.CENTER);
+                p.noStroke();
+                p.fill(15, 25, 35);
+                p.rect(p.width / 2, this.posY - 10, p.width, 40);
+                p.fill(255);
+                p.text(this.gameName, p.width / 2, this.posY);
+            }
+        }
+
+        p.setup = () => {
+            let canvasWidth = document.querySelector('#root').offsetWidth || 960;
+            p.createCanvas(canvasWidth, 200).parent('root');
+            names = [];
+            scrollSpeed = 10;
+            nameGenerationSpeed = 5;
+            selectionTopLine = p.height / 2 - 40;
+            selectionBottomLine = p.height / 2 + 20;
+            currentGamePool = games.map(x => x);
+        };
+
+        p.draw = () => {
+            p.background(15, 25, 35);
+            p.textSize(32);
+            p.textAlign('center');
+            currentGame = p.random(currentGamePool).name;
+
+            if (randomising) {
+                if (p.frameCount % nameGenerationSpeed === 0) {
+                    names.push(new Name(-1000, currentGame));
+                }
+                names.forEach((name, i) => {
+                    if (name.posY > p.height * 1.2) {
+                        names.splice(i, 1);
+                    } else {
+                        name.posY += scrollSpeed;
+                        name.draw();
+                    }
+                });
+
+                if (currentGamePool.length > 10) {
+                    currentGamePool.splice(currentGamePool.findIndex(x => x.name === currentGame), 1);
+                } else {
+                    currentGamePool = games.map(x => x);
+                }
+
+            } else {
+                names.forEach((name, i) => {
+                    if (name.posY > p.height * 1.2) {
+                        names.splice(i, 1);
+                    } else {
+                        scrollSpeed = p.lerp(scrollSpeed, 0, 0.0006);
+                        name.posY += scrollSpeed;
+                        name.draw();
+                        if (scrollSpeed < 0.1) {
+                            scrollSpeed = 0;
+                            const closestName = names.find(n => n.posY > selectionTopLine && n.posY < selectionBottomLine);
+                            if (closestName) {
+                                const distanceToCentre = closestName.posY - p.height / 2;
+                                names.forEach(n => n.posY -= p.lerp(0, distanceToCentre, 0.01));
+                                if (!settled) {
+                                    settled = true;
+                                    showGameCard(closestName.gameName);
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            p.stroke(102, 192, 244);
+            p.strokeWeight(1.5);
+            p.line(0, selectionTopLine + 10, p.width, selectionTopLine + 10);
+            p.line(0, selectionBottomLine - 10, p.width, selectionBottomLine - 10);
+        };
+
+        window.startRandom = () => {
+            randomising = true;
+            scrollSpeed = 8;
+            nameGenerationSpeed = 5;
+            settled = false;
+            document.getElementById('game-card').style.display = 'none';
+            currentGamePool = games.map(x => x);
+            const spacing = nameGenerationSpeed * scrollSpeed;
+            names = [];
+            for (let y = -1000; y <= p.height; y += spacing) {
+                names.push(new Name(y, p.random(currentGamePool).name));
+            }
+        };
+
+        window.endRandom = () => {
+            randomising = false;
+        };
+    };
+</script>
